@@ -157,7 +157,7 @@
               <option value="scurve">Sカーブ</option>
               <option value="gaussiannoise">Gaussian Noise</option>
               <option value="gaussianblur">Gaussian Blur</option>
-              <option value="blackwhite">白黒点 / クリップ</option>
+              <option value="blackwhite">白黒点 / レベル</option>
               <option value="gain">ゲイン</option>
               <option value="offset">オフセット</option>
               <option value="affine">アフィン変換</option>
@@ -315,7 +315,7 @@
     gaussiannoise:{name:'Gaussian Noise', affine:false, spatial:true, params:{sigma:0.03,seed:1}, labels:{sigma:'σ',seed:'seed'}, ranges:{sigma:{min:0,max:0.2,step:0.005},seed:{min:0,max:999,step:1}}, formula:p=>`x + N(0, ${fmt(p.sigma,3)}^2)`, cost:{rand:3,add:3,mul:3}},
     gaussianblur:{name:'Gaussian Blur', affine:false, spatial:true, params:{sigma:1.2}, labels:{sigma:'σ'}, ranges:{sigma:{min:0,max:8,step:0.1}}, formula:p=>`gaussian blur(σ=${fmt(p.sigma,2)})`, cost:{}},
     clamp:{name:'クランプ / クリップ', affine:false, params:{lo:0,hi:1}, labels:{lo:'下限',hi:'上限'}, ranges:{lo:{min:-1,max:1,step:0.01},hi:{min:0,max:2,step:0.01}}, formula:p=>`clip(x, ${fmt(p.lo,2)}, ${fmt(p.hi,2)})`, cost:{cmp:2}},
-    blackwhite:{name:'白黒点 / クリップ', affine:false, params:{lo:0,hi:1}, labels:{lo:'黒点',hi:'白点'}, ranges:{lo:{min:-0.2,max:1,step:0.01},hi:{min:0,max:1.2,step:0.01}}, formula:p=>`clip(x, ${fmt(p.lo,2)}, ${fmt(p.hi,2)})`, cost:{cmp:2}, alias:'clamp'}
+    blackwhite:{name:'白黒点 / レベル', affine:false, params:{lo:0,hi:1}, labels:{lo:'黒点 B',hi:'白点 W'}, ranges:{lo:{min:-0.2,max:0.99,step:0.01},hi:{min:0.01,max:1.2,step:0.01}}, formula:p=>`clip((x−${fmt(p.lo,2)})/(${fmt(p.hi,2)}−${fmt(p.lo,2)}), 0, 1)`, cost:{add:1,div:1,cmp:2}}
   };
 
   function makeOp(type, overrides={}){
@@ -385,6 +385,13 @@
         if(x<=lo) return {y:lo,d1:0,d2:0};
         if(x>=hi) return {y:hi,d1:0,d2:0};
         return {y:x,d1:1,d2:0};
+      }
+      case 'blackwhite': {
+        const lo=Math.min(p.lo,p.hi), hi=Math.max(p.lo,p.hi);
+        const den=Math.max(1e-9, hi-lo);
+        if(x<=lo) return {y:0,d1:0,d2:0};
+        if(x>=hi) return {y:1,d1:0,d2:0};
+        return {y:(x-lo)/den,d1:1/den,d2:0};
       }
     }
   }

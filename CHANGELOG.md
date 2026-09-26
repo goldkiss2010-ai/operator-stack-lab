@@ -2,6 +2,12 @@
 
 All notable changes to Operator Stack Lab are recorded here.
 
+## 0.8.1 — 2026-09-27
+
+- 「白黒点 / クリップ」を「白黒点 / レベル」に変更。
+- 黒点以下を 0、白点以上を 1 にし、その間を 0–1 へ線形再マップする Levels 型の動作に修正。
+- 数学的な「クランプ / クリップ」は従来どおり `clip(x, lo, hi)` として分離。
+
 ## [0.8.0] - 2026-09-27
 
 ### Added

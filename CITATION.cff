@@ -5,7 +5,7 @@ type: software
 authors:
   - family-names: "Yokota"
     given-names: "Bungaku"
-version: 0.8.0
+version: 0.8.1
 date-released: 2026-09-27
 license: MIT
 abstract: >-
