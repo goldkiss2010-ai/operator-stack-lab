@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If this software contributes to academic or educational work, please cite it using this metadata."
+title: "Operator Stack Lab"
+type: software
+authors:
+  - family-names: "Yokota"
+    given-names: "Bungaku"
+version: 0.8.0
+date-released: 2026-09-27
+license: MIT
+abstract: >-
+  A browser-based interactive tool for treating image and signal processing as
+  an ordered stack of operations, visualizing pointwise function composition,
+  applying operations to local images, and exploring simple spatial and
+  stochastic operators such as Gaussian Blur and Gaussian Noise.

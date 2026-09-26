@@ -1,0 +1,866 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>画像・信号操作 合成ラボ — 1D Signal Operations</title>
+<style>
+  :root{
+    --bg:#0d1015; --panel:#151a22; --panel2:#1b2230; --line:#2a3443;
+    --text:#edf2f7; --muted:#9aa8b8; --accent:#7dd3fc; --accent2:#c4b5fd;
+    --good:#86efac; --warn:#fde68a; --bad:#fca5a5;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;line-height:1.45}
+  header{padding:20px 22px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(13,16,21,.96);backdrop-filter:blur(10px);z-index:10}
+  h1{font-size:20px;margin:0 0 4px;font-weight:700;letter-spacing:.01em}
+  .sub{color:var(--muted);font-size:12px}
+  main{display:grid;grid-template-columns:380px minmax(0,1fr);gap:14px;padding:14px;max-width:1500px;margin:0 auto}
+  @media (max-width:980px){main{grid-template-columns:1fr}.stickycol{position:static!important}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .panel h2{font-size:13px;margin:0;padding:12px 14px;border-bottom:1px solid var(--line);letter-spacing:.03em;text-transform:uppercase;color:#cbd5e1}
+  .body{padding:12px 14px}
+  .stickycol{position:sticky;top:87px;align-self:start;max-height:calc(100vh - 102px);overflow:auto;padding-right:2px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  label{display:block;color:var(--muted);font-size:11px;margin-bottom:4px}
+  input,select,button{font:inherit}
+  input[type=number],select{width:100%;background:#0f141c;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px}
+  input[type=range]{width:100%}
+  button{background:#202938;color:var(--text);border:1px solid #344154;border-radius:8px;padding:7px 10px;cursor:pointer}
+  button:hover{border-color:#52627a;background:#263144}
+  button.primary{background:#163246;border-color:#2f6f91;color:#dff7ff}
+  button.danger{color:#fecaca}
+  button.icon{padding:5px 8px;min-width:32px}
+  .toolbar{display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px}
+  .stack{display:flex;flex-direction:column;gap:8px}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:9px;cursor:default}
+  .card.dragging{opacity:.45}
+  .cardhead{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px}
+  .cardtitle{font-weight:650}
+  .badge{font-size:10px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 6px}
+  .params{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .actions{display:flex;gap:4px;align-items:center}
+  .drag-handle{display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;border:1px dashed #46566d;border-radius:8px;color:#9fb0c4;background:#151d29;cursor:grab;user-select:none;touch-action:none;font-size:16px;line-height:1}
+  .drag-handle:active{cursor:grabbing;background:#1c2735}
+  .drag-handle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .drop-zone{height:20px;display:flex;align-items:center;justify-content:center;position:relative;color:#718096;transition:height .14s ease,background .14s ease,border-color .14s ease;border:1px solid transparent;border-radius:8px}
+  .drop-zone::before{content:'↓';font-size:18px;line-height:1}
+  .drop-zone .drop-label{display:none;font-size:10px;font-weight:700;letter-spacing:.06em;color:#dff7ff}
+  .stack.drag-active .drop-zone{height:28px;border-color:#2e4054;background:#101722}
+  .stack.drag-active .drop-zone::before{opacity:.45}
+  .stack.drag-active .drop-zone.over{height:48px;border-color:#4b8fb3;background:#102331;box-shadow:inset 0 0 0 1px rgba(125,211,252,.14)}
+  .stack.drag-active .drop-zone.over::before{display:none}
+  .stack.drag-active .drop-zone.over .drop-label{display:block}
+  .card.dragging{opacity:.34;border-style:dashed}
+  .drag-ghost{position:fixed;left:-10000px;top:-10000px;z-index:-1;opacity:.68;pointer-events:none}
+  .cost-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+  @media(max-width:900px){.cost-summary{grid-template-columns:repeat(2,1fr)}}
+  .cost-main{padding:12px;border:1px solid #3a566e;border-radius:10px;background:#10202d}
+  .cost-main .v{font-size:22px;font-weight:750;font-variant-numeric:tabular-nums}
+  .cost-main .k{font-size:10px;color:var(--muted);margin-top:2px}
+  .cost-note{margin-top:10px;color:var(--muted);font-size:11px;line-height:1.55}
+  .eq{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#d8e3ef;background:#0e131a;border:1px solid var(--line);padding:8px;border-radius:8px;overflow:auto;white-space:nowrap}
+  .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+  @media(max-width:1200px){.metrics{grid-template-columns:repeat(2,1fr)}}
+  .metric{padding:10px;border:1px solid var(--line);border-radius:10px;background:#111722}
+  .metric .v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+  .metric .k{color:var(--muted);font-size:10px;margin-top:2px}
+  .charts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:1100px){.charts{grid-template-columns:1fr}}
+  .chartbox{background:#0f141c;border:1px solid var(--line);border-radius:12px;padding:10px}
+  .charttitle{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:6px;font-size:12px;color:#cbd5e1}
+  canvas{display:block;width:100%;height:270px;background:#0b1016;border-radius:8px}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:10px;color:var(--muted)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+  .sectiongap{height:12px}
+  .small{font-size:11px;color:var(--muted)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{text-align:left;border-bottom:1px solid var(--line);padding:7px 5px;font-variant-numeric:tabular-nums}
+  th{color:var(--muted);font-weight:500}
+  .pill{display:inline-block;padding:2px 6px;border-radius:999px;background:#0f1720;border:1px solid var(--line);font-size:10px;color:#cbd5e1}
+  .notice{border-left:3px solid #48637a;padding:8px 10px;background:#101720;color:#b7c4d2;border-radius:6px;font-size:11px}
+  .toggle{display:flex;align-items:center;gap:6px;color:#cbd5e1;font-size:12px}
+  .sep{height:1px;background:var(--line);margin:10px 0}
+
+  .flow-end{display:flex;align-items:center;justify-content:center;gap:10px;background:#0f141c;border:1px solid #3a4658;border-radius:11px;padding:11px 10px;font-weight:700}
+  .flow-end.input{border-color:#526071;color:#dbe4ef}
+  .flow-end.output{border-color:#4b8fb3;background:#102331;color:#dff7ff}
+  .flow-arrow{height:20px;display:flex;align-items:center;justify-content:center;color:#718096;font-size:18px;line-height:1}
+  .order-label{font-size:10px;letter-spacing:.08em;color:#8fa0b4;text-transform:uppercase}
+  .card.first{border-color:#4d657b}
+  .card.last{border-color:#4b8fb3}
+  .stageflag{font-size:10px;border-radius:999px;padding:2px 6px;border:1px solid #425166;color:#cdd8e5;margin-left:5px}
+  .stageflag.final{border-color:#4b8fb3;color:#dff7ff;background:#102331}
+  .signal-flow{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:4px 0 2px}
+  .signal-node{flex:0 0 auto;min-width:120px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#111722}
+  .signal-node.input{border-color:#526071}
+  .signal-node.output{border-color:#4b8fb3;background:#102331}
+  .signal-node .t{font-weight:700;font-size:12px}
+  .signal-node .s{font-size:10px;color:var(--muted);margin-top:2px}
+  .signal-arrow{flex:0 0 auto;color:#718096;font-size:18px}
+  .transfer-panel{grid-column:1/-1}
+  .transfer-panel canvas{height:330px}
+  .transfer-note{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:8px;color:var(--muted);font-size:11px}
+  .strong-label{color:#dff7ff;font-weight:700}
+
+  .image-panel .body{padding:14px}
+  .image-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .file-button{display:inline-flex;align-items:center;gap:7px;background:#163246;border:1px solid #2f6f91;color:#dff7ff;border-radius:8px;padding:8px 11px;cursor:pointer;font-weight:650}
+  .file-button:hover{background:#1b3d55}
+  .file-button input{display:none}
+  .image-name{font-size:11px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:520px}
+  .image-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:900px){.image-grid{grid-template-columns:1fr}}
+  .image-box{background:#0f141c;border:1px solid var(--line);border-radius:12px;padding:10px;min-width:0}
+  .image-box .image-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:#cbd5e1}
+  .preview-wrap{min-height:220px;display:flex;align-items:center;justify-content:center;background:#090d12;border-radius:8px;overflow:hidden;position:relative}
+  .preview-wrap canvas{width:100%;height:auto;max-height:520px;object-fit:contain;background:#090d12;border-radius:0}
+  .image-placeholder{color:#64748b;font-size:12px;text-align:center;padding:40px 20px}
+  .image-foot{margin-top:9px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  details.analysis{border:1px solid var(--line);border-radius:12px;background:#111722;overflow:hidden}
+  details.analysis + details.analysis{margin-top:10px}
+  details.analysis summary{cursor:pointer;list-style:none;padding:12px 14px;font-weight:700;color:#dbe7f3;background:#121a25}
+  details.analysis summary::-webkit-details-marker{display:none}
+  details.analysis .details-body{padding:12px 14px;border-top:1px solid var(--line)}
+  .addbox{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+  .paramwrap{display:flex;flex-direction:column;gap:4px}
+  .sliderrow{display:grid;grid-template-columns:1fr 86px;gap:8px;align-items:center}
+  .sliderrow input[type=range]{margin:0}
+  .sliderrow input[type=number]{width:100%;background:#0f141c;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 8px}
+  .smallhint{color:var(--muted);font-size:11px;margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>画像・信号操作 合成ラボ</h1>
+  <div class="sub">1次元 pointwise 操作 · スライダー調整 · 画像プレビュー · 解析</div>
+</header>
+<main>
+  <div class="stickycol">
+    <section class="panel">
+      <h2>操作の順序</h2>
+      <div class="body">
+        <div id="stack" class="stack"></div>
+        <div class="addbox">
+          <label>次に追加する操作</label>
+          <div class="toolbar">
+            <select id="newOp">
+              <option value="exposure">露出</option>
+              <option value="brightness">明るさ</option>
+              <option value="contrast">コントラスト</option>
+              <option value="gammafx">ガンマ</option>
+              <option value="shadowlift">シャドウ持ち上げ</option>
+              <option value="highlightcompress">ハイライト圧縮</option>
+              <option value="scurve">Sカーブ</option>
+              <option value="gaussiannoise">Gaussian Noise</option>
+              <option value="gaussianblur">Gaussian Blur</option>
+              <option value="blackwhite">白黒点 / クリップ</option>
+              <option value="gain">ゲイン</option>
+              <option value="offset">オフセット</option>
+              <option value="affine">アフィン変換</option>
+              <option value="power">べき乗 / ガンマ（一般形）</option>
+              <option value="log">Log カーブ</option>
+              <option value="exp">Exp カーブ</option>
+              <option value="sigmoid">シグモイド</option>
+              <option value="clamp">クランプ / クリップ</option>
+            </select>
+            <button id="addOp" class="primary">一番下に追加</button>
+          </div>
+        </div>
+        <div class="sep"></div>
+        <div class="row">
+          <button id="presetBasic">例：露出 → コントラスト → ガンマ</button>
+          <button id="clearAll">すべて削除</button>
+        </div>
+        <p class="small"><strong>入力 x から下方向へ順に作用します。</strong> 下の追加欄から新しい操作を選ぶと、いちばん下へ積み上がります。右上の ↕ をドラッグ、または ↑ ↓ で並べ替えできます。</p>
+      </div>
+    </section>
+
+    <div class="sectiongap"></div>
+
+    <section class="panel">
+      <h2>入力範囲とサンプリング</h2>
+      <div class="body grid2">
+        <div><label>入力 x の最小値</label><input id="xmin" type="number" step="0.1" value="0"></div>
+        <div><label>入力 x の最大値</label><input id="xmax" type="number" step="0.1" value="1"></div>
+        <div><label>グラフ評価点 M</label><input id="samples" type="number" min="64" max="4096" step="64" value="512"></div>
+        <div><label>計算量の想定画素数 N</label><input id="pixelsN" type="number" min="1" value="24000000"></div>
+      </div>
+    </section>
+  </div>
+
+  <div>
+    <section class="panel">
+      <h2>合成された変換</h2>
+      <div class="body">
+        <div class="order-label" style="margin-bottom:6px">信号の流れ</div>
+        <div id="signalFlow" class="signal-flow"></div>
+        <div class="sectiongap"></div>
+        <div id="formula" class="eq">F(x) = x</div>
+        <div class="sectiongap"></div>
+        <div class="metrics">
+          <div class="metric"><div class="v" id="stageCount">0</div><div class="k">操作数 n</div></div>
+          <div class="metric"><div class="v" id="simplifiedCount">0</div><div class="k">厳密簡約後の段数</div></div>
+          <div class="metric"><div class="v" id="maxSlope">1.000</div><div class="k">最大 |F′(x)|</div></div>
+          <div class="metric"><div class="v" id="maxCurv">0.000</div><div class="k">最大 |F″(x)|</div></div>
+        </div>
+        <div class="sectiongap"></div>
+        <div id="simplified" class="notice">簡約可能な操作はありません。</div>
+      </div>
+    </section>
+
+    <div class="sectiongap"></div>
+
+    <div class="charts">
+      <section class="panel transfer-panel"><h2>入力と最終出力</h2><div class="body"><div class="chartbox"><div class="charttitle"><span>入力 x → 最終出力 F(x)</span><span class="legend"><span><i class="dot" style="background:#7dd3fc"></i>最終出力 F(x)</span><span><i class="dot" style="background:#64748b"></i>入力 y=x</span></span></div><canvas id="chartF"></canvas></div><div class="transfer-note"><span>灰色の破線：<strong>入力そのもの y=x</strong></span><span class="strong-label">水色の太線：全操作後の最終出力 F(x)</span></div>
+<label class="toggle" style="margin-top:9px"><input id="showIntermediate" type="checkbox"> 途中段階のカーブも表示する</label><div id="stageList" class="small" style="margin-top:8px"></div><div id="curveModeNote" class="smallhint" style="margin-top:8px"></div></div></section>
+      <section class="panel transfer-panel image-panel">
+        <h2>画像で確認</h2>
+        <div class="body">
+          <div class="image-toolbar">
+            <label class="file-button">画像を選択<input id="imageInput" type="file" accept="image/*"></label>
+            <button id="clearImage">画像を外す</button>
+            <span id="imageName" class="image-name">画像はまだ選択されていません</span>
+          </div>
+          <div class="image-grid">
+            <div class="image-box">
+              <div class="image-title"><strong>入力画像</strong><span>処理前</span></div>
+              <div id="originalWrap" class="preview-wrap"><div class="image-placeholder">好きな画像を選択してください</div><canvas id="imageOriginal" hidden></canvas></div>
+            </div>
+            <div class="image-box">
+              <div class="image-title"><strong>最終出力</strong><span id="imageFlowLabel">F(R), F(G), F(B)</span></div>
+              <div id="processedWrap" class="preview-wrap"><div class="image-placeholder">ここに最終出力が表示されます</div><canvas id="imageProcessed" hidden></canvas></div>
+            </div>
+          </div>
+          <div class="image-foot small">
+            <span>RGB 各チャンネルのコード値（0–1）に同じ 1D 変換 F を適用します。</span>
+            <span>表示時のみ 0–1 にクリップ。カラーマネジメントはまだ行いません。</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="sectiongap"></div>
+
+    <section class="panel">
+      <h2>解析</h2>
+      <div class="body">
+        <details class="analysis" open>
+          <summary>微分を見る</summary>
+          <div class="details-body">
+            <div class="chartbox"><div class="charttitle"><span>局所ゲイン F′ と曲率 F″</span><span class="legend"><span><i class="dot" style="background:#86efac"></i>F′</span><span><i class="dot" style="background:#f0abfc"></i>F″</span></span></div><canvas id="chartD"></canvas></div>
+          </div>
+        </details>
+        <details class="analysis">
+          <summary>計算量と演算構成を見る</summary>
+          <div class="details-body">
+            <div class="cost-summary">
+              <div class="cost-main"><div class="v" id="costPerPixel">0 units</div><div class="k">1画素あたりの相対コスト</div></div>
+              <div class="metric"><div class="v" id="costForImage">0</div><div class="k">N画素での総 cost units</div></div>
+              <div class="metric"><div class="v" id="costStageCount">0</div><div class="k">操作段数</div></div>
+              <div class="metric"><div class="v mono" id="complexityImg">O(Nn)</div><div class="k">理論計算量</div></div>
+            </div>
+            <div class="sectiongap"></div>
+            <table>
+              <thead><tr><th>演算</th><th>1画素あたり</th><th>重み</th><th>cost units</th></tr></thead>
+              <tbody id="opTable"></tbody>
+            </table>
+            <div class="cost-note">cost units は操作列どうしを比較するための相対値です。現在は add/mul/cmp/tap=1、div=3、2^x=4、rand=8、pow/log/exp=10 とする簡易モデルです。Gaussian Blur は separable blur を想定し、tap は近傍参照回数の目安です。実測時間ではなく、CPU/GPU・SIMD・fusion・キャッシュ等は含みません。グラフ評価は <span class="mono" id="complexityGraph">O(Mn)</span> です。</div>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <div class="sectiongap"></div>
+
+    <section class="panel">
+      <h2>注記</h2>
+      <div class="body">
+        <div class="notice">この版は 1D の pointwise 操作に限定しています。左の操作は上から下へ順番に作用し、下の追加欄から新しい操作を一番下へ積みます。各パラメータは常識的な範囲のスライダーと数値入力の両方で調整できます。操作カードは ↕ ハンドルで移動し、ドラッグ中は挿入位置がハイライトされます。編集ソフト風の項目（明るさ、ガンマ、シャドウ持ち上げ、ハイライト圧縮、Sカーブなど）も追加しましたが、内部では同じ関数クラスを用いています。右の「入力と最終出力」では入力 y=x を灰色の破線、すべての操作を通過した F(x) を水色の太線で表示します。画像プレビューでは同じ F を RGB 各チャンネルへ独立に適用します。</div>
+      </div>
+    </section>
+  </div>
+</main>
+<script>
+(() => {
+  let uid = 1;
+  let ops = [];
+  let imageSource = null;
+  let imageRenderPending = false;
+  const IMAGE_MAX_DIM = 900;
+  const $ = id => document.getElementById(id);
+  const fmt = (x, d=4) => Number.isFinite(x) ? (Math.abs(x)>=1e4 || (Math.abs(x)>0 && Math.abs(x)<1e-4) ? x.toExponential(3) : x.toFixed(d)) : '—';
+  const clamp = (x,a,b)=>Math.min(b,Math.max(a,x));
+  const sgn = x => x<0?-1:x>0?1:0;
+  const safePowAbs = (x,g) => Math.pow(Math.max(Math.abs(x),1e-12), g);
+
+  const defs = {
+    gain:{name:'ゲイン', affine:true, params:{a:1.2}, labels:{a:'ゲイン'}, ranges:{a:{min:0,max:4,step:0.01}}, formula:p=>`${fmt(p.a,3)}·x`, cost:{mul:1}},
+    exposure:{name:'露出', affine:true, params:{ev:1}, labels:{ev:'EV'}, ranges:{ev:{min:-5,max:5,step:0.1}}, formula:p=>`2^(${fmt(p.ev,2)})·x`, cost:{mul:1,exp2:1}},
+    offset:{name:'オフセット', affine:true, params:{b:0.05}, labels:{b:'オフセット'}, ranges:{b:{min:-1,max:1,step:0.01}}, formula:p=>`x + ${fmt(p.b,3)}`, cost:{add:1}},
+    brightness:{name:'明るさ', affine:true, params:{b:0.1}, labels:{b:'明るさ'}, ranges:{b:{min:-0.5,max:0.5,step:0.01}}, formula:p=>`x + ${fmt(p.b,3)}`, cost:{add:1}, alias:'offset'},
+    affine:{name:'アフィン変換', affine:true, params:{a:1,b:0}, labels:{a:'a',b:'b'}, ranges:{a:{min:-4,max:4,step:0.01},b:{min:-2,max:2,step:0.01}}, formula:p=>`${fmt(p.a,3)}·x + ${fmt(p.b,3)}`, cost:{mul:1,add:1}},
+    contrast:{name:'コントラスト', affine:true, params:{k:1.2,p:0.5}, labels:{k:'強さ',p:'中心'}, ranges:{k:{min:0,max:3,step:0.01},p:{min:0,max:1,step:0.01}}, formula:p=>`${fmt(p.p,3)} + ${fmt(p.k,3)}·(x−${fmt(p.p,3)})`, cost:{mul:1,add:2}},
+    power:{name:'べき乗 / ガンマ（一般形）', affine:false, params:{g:0.8}, labels:{g:'ガンマ γ'}, ranges:{g:{min:0.05,max:3,step:0.01}}, formula:p=>`sgn(x)|x|^${fmt(p.g,3)}`, cost:{pow:1,mul:1}},
+    gammafx:{name:'ガンマ', affine:false, params:{g:0.85}, labels:{g:'ガンマ'}, ranges:{g:{min:0.2,max:3,step:0.01}}, formula:p=>`sgn(x)|x|^${fmt(p.g,3)}`, cost:{pow:1,mul:1}, alias:'power'},
+    shadowlift:{name:'シャドウ持ち上げ', affine:false, params:{g:0.75}, labels:{g:'持ち上げ量'}, ranges:{g:{min:0.3,max:1.5,step:0.01}}, formula:p=>`sgn(x)|x|^${fmt(p.g,3)}`, cost:{pow:1,mul:1}, alias:'power'},
+    log:{name:'Log カーブ', affine:false, params:{k:8}, labels:{k:'強さ k'}, ranges:{k:{min:0.01,max:20,step:0.1}}, formula:p=>`sgn(x)·log(1+k|x|)/log(1+k)`, cost:{log:2,mul:2,add:2,div:1}},
+    highlightcompress:{name:'ハイライト圧縮', affine:false, params:{k:6}, labels:{k:'圧縮量'}, ranges:{k:{min:0.01,max:20,step:0.1}}, formula:p=>`sgn(x)·log(1+k|x|)/log(1+k)`, cost:{log:2,mul:2,add:2,div:1}, alias:'log'},
+    exp:{name:'Exp カーブ', affine:false, params:{k:3}, labels:{k:'強さ k'}, ranges:{k:{min:0.01,max:10,step:0.1}}, formula:p=>`sgn(x)·(exp(k|x|)−1)/(exp(k)−1)`, cost:{exp:2,mul:2,add:2,div:1}},
+    sigmoid:{name:'シグモイド', affine:false, params:{k:8,p:0.5}, labels:{k:'傾き k',p:'ピボット p'}, ranges:{k:{min:0.1,max:20,step:0.1},p:{min:0,max:1,step:0.01}}, formula:p=>`1/(1+exp(−${fmt(p.k,2)}(x−${fmt(p.p,2)})))`, cost:{exp:1,mul:1,add:2,div:1}},
+    scurve:{name:'Sカーブ', affine:false, params:{k:8,p:0.5}, labels:{k:'コントラスト量',p:'中心'}, ranges:{k:{min:0.1,max:20,step:0.1},p:{min:0,max:1,step:0.01}}, formula:p=>`1/(1+exp(−${fmt(p.k,2)}(x−${fmt(p.p,2)})))`, cost:{exp:1,mul:1,add:2,div:1}, alias:'sigmoid'},
+    gaussiannoise:{name:'Gaussian Noise', affine:false, spatial:true, params:{sigma:0.03,seed:1}, labels:{sigma:'σ',seed:'seed'}, ranges:{sigma:{min:0,max:0.2,step:0.005},seed:{min:0,max:999,step:1}}, formula:p=>`x + N(0, ${fmt(p.sigma,3)}^2)`, cost:{rand:3,add:3,mul:3}},
+    gaussianblur:{name:'Gaussian Blur', affine:false, spatial:true, params:{sigma:1.2}, labels:{sigma:'σ'}, ranges:{sigma:{min:0,max:8,step:0.1}}, formula:p=>`gaussian blur(σ=${fmt(p.sigma,2)})`, cost:{}},
+    clamp:{name:'クランプ / クリップ', affine:false, params:{lo:0,hi:1}, labels:{lo:'下限',hi:'上限'}, ranges:{lo:{min:-1,max:1,step:0.01},hi:{min:0,max:2,step:0.01}}, formula:p=>`clip(x, ${fmt(p.lo,2)}, ${fmt(p.hi,2)})`, cost:{cmp:2}},
+    blackwhite:{name:'白黒点 / クリップ', affine:false, params:{lo:0,hi:1}, labels:{lo:'黒点',hi:'白点'}, ranges:{lo:{min:-0.2,max:1,step:0.01},hi:{min:0,max:1.2,step:0.01}}, formula:p=>`clip(x, ${fmt(p.lo,2)}, ${fmt(p.hi,2)})`, cost:{cmp:2}, alias:'clamp'}
+  };
+
+  function makeOp(type, overrides={}){
+    const d=defs[type];
+    return {id:uid++, type, p:{...d.params,...overrides}};
+  }
+
+  function canonicalType(type){
+    return defs[type]?.alias || type;
+  }
+
+  function isSpatialType(type){
+    return !!defs[type]?.spatial;
+  }
+
+  function isSpatialOp(op){
+    return isSpatialType(op.type);
+  }
+
+  function pointwiseOps(list=ops){
+    return list.filter(op=>!isSpatialOp(op));
+  }
+
+  function hasSpatialOps(list=ops){
+    return list.some(isSpatialOp);
+  }
+
+  function evalStage(op,x){
+    const p=op.p;
+    const base=canonicalType(op.type);
+    switch(base){
+      case 'gain': return {y:p.a*x,d1:p.a,d2:0};
+      case 'exposure': {const a=Math.pow(2,p.ev); return {y:a*x,d1:a,d2:0};}
+      case 'offset': return {y:x+p.b,d1:1,d2:0};
+      case 'affine': return {y:p.a*x+p.b,d1:p.a,d2:0};
+      case 'contrast': {const b=p.p*(1-p.k); return {y:p.k*x+b,d1:p.k,d2:0};}
+      case 'power': {
+        const g=Math.max(0.05,p.g); const ax=Math.abs(x);
+        const y=sgn(x)*Math.pow(ax,g);
+        if(ax<1e-10){ return {y, d1:g===1?1:(g>1?0:1e6), d2:0}; }
+        const d1=g*Math.pow(ax,g-1);
+        const d2=sgn(x)*g*(g-1)*Math.pow(ax,g-2);
+        return {y,d1,d2};
+      }
+      case 'log': {
+        const k=Math.max(1e-6,p.k), ax=Math.abs(x), den=Math.log1p(k), q=1+k*ax;
+        const y=sgn(x)*Math.log1p(k*ax)/den;
+        const d1=k/(den*q);
+        const d2=-sgn(x)*k*k/(den*q*q);
+        return {y,d1,d2};
+      }
+      case 'exp': {
+        const k=Math.max(1e-6,p.k), ax=Math.abs(x), den=Math.expm1(k), e=Math.exp(k*ax);
+        const y=sgn(x)*Math.expm1(k*ax)/den;
+        const d1=k*e/den;
+        const d2=sgn(x)*k*k*e/den;
+        return {y,d1,d2};
+      }
+      case 'sigmoid': {
+        const k=p.k, z=clamp(-k*(x-p.p),-60,60), s=1/(1+Math.exp(z));
+        const d1=k*s*(1-s);
+        const d2=k*k*s*(1-s)*(1-2*s);
+        return {y:s,d1,d2};
+      }
+      case 'clamp': {
+        const lo=Math.min(p.lo,p.hi), hi=Math.max(p.lo,p.hi);
+        if(x<=lo) return {y:lo,d1:0,d2:0};
+        if(x>=hi) return {y:hi,d1:0,d2:0};
+        return {y:x,d1:1,d2:0};
+      }
+    }
+  }
+
+  function evalComposite(x, list=ops){
+    let y=x, D1=1, D2=0;
+    for(const op of list){
+      if(isSpatialOp(op)) continue;
+      const e=evalStage(op,y);
+      const oldD1=D1, oldD2=D2;
+      y=e.y;
+      D1=e.d1*oldD1;
+      D2=e.d2*oldD1*oldD1 + e.d1*oldD2;
+      if(!Number.isFinite(y)||!Number.isFinite(D1)||!Number.isFinite(D2)) break;
+    }
+    return {y,d1:D1,d2:D2};
+  }
+
+  function evalCompositeValue(x, list=ops){
+    let y=x;
+    for(const op of list){
+      if(isSpatialOp(op)) continue;
+      y=evalStage(op,y).y;
+      if(!Number.isFinite(y)) break;
+    }
+    return y;
+  }
+
+  function affineAB(op){
+    const p=op.p;
+    switch(op.type){
+      case 'gain': return [p.a,0];
+      case 'exposure': return [Math.pow(2,p.ev),0];
+      case 'offset': return [1,p.b];
+      case 'affine': return [p.a,p.b];
+      case 'contrast': return [p.k,p.p*(1-p.k)];
+      default:return null;
+    }
+  }
+
+  function simplifyExact(){
+    const out=[];
+    let acc=null, count=0;
+    const flush=()=>{ if(acc){out.push({kind:'affine',a:acc[0],b:acc[1],count}); acc=null; count=0;} };
+    for(const op of ops){
+      if(defs[op.type].affine){
+        const [a,b]=affineAB(op);
+        if(!acc) acc=[a,b];
+        else acc=[a*acc[0], a*acc[1]+b];
+        count++;
+      } else { flush(); out.push({kind:'op',op}); }
+    }
+    flush();
+    return out;
+  }
+
+  function renderStack(){
+    const root=$('stack'); root.innerHTML='';
+
+    const clearDropState=()=>{
+      root.classList.remove('drag-active');
+      root.querySelectorAll('.drop-zone.over').forEach(z=>z.classList.remove('over'));
+    };
+
+    const makeDropZone=(targetIndex)=>{
+      const zone=document.createElement('div');
+      zone.className='drop-zone';
+      zone.dataset.index=targetIndex;
+      zone.innerHTML='<span class="drop-label">ここに挿入</span>';
+      zone.addEventListener('dragenter',e=>{
+        if(!root.classList.contains('drag-active')) return;
+        e.preventDefault();
+        root.querySelectorAll('.drop-zone.over').forEach(z=>z.classList.remove('over'));
+        zone.classList.add('over');
+      });
+      zone.addEventListener('dragover',e=>{
+        if(!root.classList.contains('drag-active')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect='move';
+        if(!zone.classList.contains('over')){
+          root.querySelectorAll('.drop-zone.over').forEach(z=>z.classList.remove('over'));
+          zone.classList.add('over');
+        }
+      });
+      zone.addEventListener('dragleave',e=>{
+        if(!zone.contains(e.relatedTarget)) zone.classList.remove('over');
+      });
+      zone.addEventListener('drop',e=>{
+        e.preventDefault();
+        const fromId=Number(e.dataTransfer.getData('text/plain'));
+        const from=ops.findIndex(o=>o.id===fromId);
+        let target=Number(zone.dataset.index);
+        if(from<0 || !Number.isFinite(target)){ clearDropState(); return; }
+        const [m]=ops.splice(from,1);
+        if(from<target) target--;
+        target=Math.max(0,Math.min(ops.length,target));
+        ops.splice(target,0,m);
+        clearDropState();
+        renderStack(); updateAll();
+      });
+      return zone;
+    };
+
+    const input=document.createElement('div');
+    input.className='flow-end input';
+    input.innerHTML='<span class="order-label">入力</span><span>x</span>';
+    root.appendChild(input);
+
+    ops.forEach((op,i)=>{
+      root.appendChild(makeDropZone(i));
+      const d=defs[op.type];
+      const card=document.createElement('div'); card.className='card'+(i===0?' first':'')+(i===ops.length-1?' last':''); card.dataset.id=op.id;
+      const flag=i===0 && i===ops.length-1 ? '<span class="stageflag final">最初で最後</span>' : i===0 ? '<span class="stageflag">最初の操作</span>' : i===ops.length-1 ? '<span class="stageflag final">最後の操作</span>' : '';
+      card.innerHTML=`<div class="cardhead"><div><span class="order-label">${i+1} 番目</span><br><span class="cardtitle">${d.name}</span>${flag} <span class="badge">${d.affine?'アフィン':'非線形'}</span></div><div class="actions"><span class="drag-handle" draggable="true" tabindex="0" role="button" aria-label="ドラッグして並べ替え" title="ドラッグして並べ替え">↕</span><button class="icon up" title="上へ">↑</button><button class="icon down" title="下へ">↓</button><button class="icon danger del" title="削除">×</button></div></div><div class="params"></div><div class="eq" style="margin-top:7px">${d.formula(op.p)}</div>`;
+      const params=card.querySelector('.params');
+      Object.entries(op.p).forEach(([k,v])=>{
+        const wrap=document.createElement('div');
+        wrap.className='paramwrap';
+        const r=(d.ranges&&d.ranges[k]) || {min:-10,max:10,step:0.01};
+        wrap.innerHTML=`<label>${d.labels[k]||k}</label><div class="sliderrow"><input type="range" min="${r.min}" max="${r.max}" step="${r.step}" data-param="${k}" value="${v}"><input type="number" min="${r.min}" max="${r.max}" step="${r.step}" data-param-num="${k}" value="${v}"></div><div class="smallhint">範囲 ${r.min} ～ ${r.max}</div>`;
+        const slider=wrap.querySelector('input[type="range"]');
+        const num=wrap.querySelector('input[type="number"]');
+        const sync=(val)=>{
+          op.p[k]=Number(val);
+          slider.value=String(op.p[k]);
+          num.value=String(op.p[k]);
+          card.querySelector('.eq').textContent=d.formula(op.p);
+          updateAll(false);
+        };
+        slider.addEventListener('input',()=>sync(slider.value));
+        num.addEventListener('input',()=>sync(num.value));
+        params.appendChild(wrap);
+      });
+      card.querySelector('.del').onclick=()=>{ops.splice(i,1); renderStack(); updateAll();};
+      card.querySelector('.up').onclick=()=>{if(i>0){[ops[i-1],ops[i]]=[ops[i],ops[i-1]]; renderStack(); updateAll();}};
+      card.querySelector('.down').onclick=()=>{if(i<ops.length-1){[ops[i+1],ops[i]]=[ops[i],ops[i+1]]; renderStack(); updateAll();}};
+      const dragHandle=card.querySelector('.drag-handle');
+      dragHandle.addEventListener('dragstart',e=>{
+        card.classList.add('dragging');
+        root.classList.add('drag-active');
+        e.dataTransfer.effectAllowed='move';
+        e.dataTransfer.setData('text/plain',String(op.id));
+        const ghost=card.cloneNode(true);
+        ghost.classList.add('drag-ghost');
+        ghost.style.width=`${card.getBoundingClientRect().width}px`;
+        document.body.appendChild(ghost);
+        e.dataTransfer.setDragImage(ghost, Math.min(60,ghost.offsetWidth/2), 24);
+        setTimeout(()=>ghost.remove(),0);
+      });
+      dragHandle.addEventListener('dragend',()=>{
+        card.classList.remove('dragging');
+        clearDropState();
+      });
+      root.appendChild(card);
+    });
+
+    root.appendChild(makeDropZone(ops.length));
+    const output=document.createElement('div');
+    output.className='flow-end output';
+    output.innerHTML='<span class="order-label">最終出力</span><span>F(x)</span>';
+    root.appendChild(output);
+  }
+  
+  function updateCompareSelects(){}
+
+  function evalCumulativeStages(x){
+    const out=[x];
+    let y=x;
+    for(const op of pointwiseOps()){ y=evalStage(op,y).y; out.push(y); }
+    return out;
+  }
+
+  function renderSignalFlow(){
+    const root=$('signalFlow'); root.innerHTML='';
+    const addNode=(cls,title,sub)=>{const n=document.createElement('div');n.className='signal-node '+cls;n.innerHTML=`<div class="t">${title}</div><div class="s">${sub}</div>`;root.appendChild(n);};
+    const addArrow=()=>{const a=document.createElement('div');a.className='signal-arrow';a.textContent='→';root.appendChild(a);};
+    addNode('input','入力 x','まだ何も作用していない信号');
+    ops.forEach((op,i)=>{const d=defs[op.type]; addArrow();addNode('',`${i+1}. ${d.name}`, d.spatial?'空間操作':(i===0?'最初に作用':i===ops.length-1?'最後に作用':'次に作用'));});
+    addArrow(); addNode('output',hasSpatialOps()?'最終出力':'最終出力 F(x)', ops.length?`${ops.length} 操作をすべて通過`:'恒等変換');
+    $('stageList').innerHTML = ops.length ? `処理順：<strong>入力</strong> → ${ops.map((op,i)=>`${i+1}. ${defs[op.type].name}`).join(' → ')} → <strong>最終出力</strong>` : '処理順：<strong>入力</strong> → <strong>最終出力 = 入力</strong>';
+  }
+
+  function samples(){
+    let xmin=Number($('xmin').value), xmax=Number($('xmax').value), M=Math.max(64,Math.min(4096,Number($('samples').value)||512));
+    if(!(xmax>xmin)) xmax=xmin+1;
+    const arr=[];
+    for(let i=0;i<M;i++){const x=xmin+(xmax-xmin)*i/(M-1); const e=evalComposite(x); arr.push({x,...e});}
+    return arr;
+  }
+
+  function rangeOf(series, key, extra=[]){
+    let vals=series.map(d=>d[key]).concat(extra).filter(Number.isFinite);
+    if(!vals.length)return[-1,1];
+    let mn=Math.min(...vals), mx=Math.max(...vals);
+    if(mn===mx){const e=Math.max(1,Math.abs(mn)*.1); mn-=e;mx+=e;}
+    const pad=.08*(mx-mn); return[mn-pad,mx+pad];
+  }
+
+  function drawAxes(ctx,w,h,xmin,xmax,ymin,ymax){
+    ctx.clearRect(0,0,w,h); ctx.fillStyle='#0b1016'; ctx.fillRect(0,0,w,h);
+    const L=44,R=12,T=12,B=28, pw=w-L-R, ph=h-T-B;
+    const X=x=>L+(x-xmin)/(xmax-xmin)*pw, Y=y=>T+(ymax-y)/(ymax-ymin)*ph;
+    ctx.strokeStyle='#1e2936';ctx.lineWidth=1;
+    for(let i=0;i<=4;i++){const xx=L+pw*i/4;ctx.beginPath();ctx.moveTo(xx,T);ctx.lineTo(xx,T+ph);ctx.stroke();}
+    for(let i=0;i<=4;i++){const yy=T+ph*i/4;ctx.beginPath();ctx.moveTo(L,yy);ctx.lineTo(L+pw,yy);ctx.stroke();}
+    if(xmin<=0&&xmax>=0){ctx.strokeStyle='#334155';ctx.beginPath();ctx.moveTo(X(0),T);ctx.lineTo(X(0),T+ph);ctx.stroke();}
+    if(ymin<=0&&ymax>=0){ctx.strokeStyle='#334155';ctx.beginPath();ctx.moveTo(L,Y(0));ctx.lineTo(L+pw,Y(0));ctx.stroke();}
+    ctx.fillStyle='#8da0b5';ctx.font='10px system-ui';
+    ctx.fillText(fmt(xmin,2),L,T+ph+17); ctx.fillText(fmt(xmax,2),L+pw-26,T+ph+17);
+    ctx.fillText(fmt(ymax,2),4,T+8); ctx.fillText(fmt(ymin,2),4,T+ph);
+    return {X,Y,L,R,T,B,pw,ph};
+  }
+
+  function setupCanvas(id){const c=$(id), dpr=window.devicePixelRatio||1, rect=c.getBoundingClientRect(); const cssH=id==='chartF'?330:270; c.width=Math.max(300,Math.floor(rect.width*dpr)); c.height=Math.floor(cssH*dpr); const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); return {c,ctx,w:rect.width,h:cssH};}
+  function line(ctx,pts,X,Y,color,width=1.7,dash=[]){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);ctx.beginPath();let started=false;for(const p of pts){if(!Number.isFinite(p.x)||!Number.isFinite(p.y)){started=false;continue;}const xx=X(p.x),yy=Y(p.y); if(!started){ctx.moveTo(xx,yy);started=true;}else ctx.lineTo(xx,yy);}ctx.stroke();ctx.restore();}
+
+  function drawCharts(s){
+    const xmin=s[0].x, xmax=s[s.length-1].x;
+    $('curveModeNote').innerHTML = hasSpatialOps() ? '※ 現在の操作列には <strong>Gaussian Noise</strong> または <strong>Gaussian Blur</strong> のような空間操作が含まれます。上のカーブと下の微分は、<strong>pointwise 部分のみ</strong>を表示しています。画像プレビューには全操作が反映されます。' : '';
+    { 
+      const {ctx,w,h}=setupCanvas('chartF');
+      const cumulative=s.map(d=>({x:d.x, stages:evalCumulativeStages(d.x)}));
+      const allY=cumulative.flatMap(d=>d.stages).filter(Number.isFinite);
+      let ymn=Math.min(...allY), ymx=Math.max(...allY); if(!Number.isFinite(ymn)){ymn=xmin;ymx=xmax;} if(ymn===ymx){ymn-=1;ymx+=1;} const pad=.08*(ymx-ymn);
+      const a=drawAxes(ctx,w,h,xmin,xmax,ymn-pad,ymx+pad);
+      line(ctx,s.map(d=>({x:d.x,y:d.x})),a.X,a.Y,'#64748b',1.3,[6,5]);
+      if($('showIntermediate').checked && cumulative[0].stages.length>2){
+        for(let j=1;j<cumulative[0].stages.length-1;j++) line(ctx,cumulative.map(d=>({x:d.x,y:d.stages[j]})),a.X,a.Y,'#405064',1.0,[2,5]);
+      }
+      line(ctx,s.map(d=>({x:d.x,y:d.y})),a.X,a.Y,'#7dd3fc',2.8);
+    }
+    { const {ctx,w,h}=setupCanvas('chartD'); const vals=s.flatMap(d=>[d.d1,d.d2]).filter(Number.isFinite); let ymn=Math.min(...vals),ymx=Math.max(...vals); if(!Number.isFinite(ymn)){ymn=-1;ymx=1;} const cap=Math.max(2,Math.min(100,Math.max(Math.abs(ymn),Math.abs(ymx)))); ymn=Math.max(ymn,-cap);ymx=Math.min(ymx,cap); if(ymn===ymx){ymn-=1;ymx+=1;} const pad=.08*(ymx-ymn); const a=drawAxes(ctx,w,h,xmin,xmax,ymn-pad,ymx+pad); line(ctx,s.map(d=>({x:d.x,y:d.d1})),a.X,a.Y,'#86efac',2); line(ctx,s.map(d=>({x:d.x,y:d.d2})),a.X,a.Y,'#f0abfc',1.6); }
+  }
+  function drawCommutator(){}
+
+  function renderFormula(){
+    if(!ops.length){$('formula').textContent='入力 → 最終出力 = 入力';return;}
+    const chain=ops.map((o,i)=>`${i+1}. ${defs[o.type].name}`).join(' → ');
+    $('formula').textContent= hasSpatialOps() ? `入力 → ${chain} → 最終出力` : `入力 x → ${chain} → 最終出力 F(x)`;
+  }
+
+  function renderSimplification(){
+    const simp=simplifyExact(); $('simplifiedCount').textContent=simp.length;
+    if(!ops.length){$('simplified').textContent='恒等変換のみです。';return;}
+    const parts=simp.map(s=>s.kind==='affine'?`アフィン(a=${fmt(s.a,5)}, b=${fmt(s.b,5)})${s.count>1?`  ← ${s.count} 段を統合`:''}`:defs[s.op.type].name);
+    const extra=hasSpatialOps() ? ' <span class="pill">空間操作はそのまま保持</span>' : '';
+    $('simplified').innerHTML=`<strong>厳密に安全な簡約：</strong> ${parts.map(x=>`<span class="pill">${x}</span>`).join(' → ')}${extra}`;
+  }
+
+  function costForOp(op){
+    const c={...(defs[op.type].cost||{})};
+    if(op.type==='gaussianblur'){
+      const sigma=Math.max(0, Number(op.p.sigma)||0);
+      const radius=Math.ceil(3*sigma);
+      const taps=sigma>0 ? 2*(2*radius+1)*3 : 0;
+      c.tap=(c.tap||0)+taps;
+    }
+    return c;
+  }
+
+  function costTotals(){
+    const keys=['add','mul','div','pow','log','exp','exp2','cmp','rand','tap']; const c=Object.fromEntries(keys.map(k=>[k,0]));
+    for(const op of ops){for(const [k,v] of Object.entries(costForOp(op))) c[k]=(c[k]||0)+v;}
+    return c;
+  }
+
+  function renderCosts(){
+    const N=Math.max(1,Number($('pixelsN').value)||1),M=Math.max(1,Number($('samples').value)||1),n=ops.length;
+    const c=costTotals();
+    const weights={add:1,mul:1,div:3,pow:10,log:10,exp:10,exp2:4,cmp:1,rand:8,tap:1};
+    const labels={add:'加算 / 減算',mul:'乗算',div:'除算',pow:'べき乗',log:'log / log1p',exp:'exp / expm1',exp2:'2^x',cmp:'比較',rand:'乱数生成',tap:'近傍参照 tap'};
+    const units=Object.keys(weights).reduce((sum,k)=>sum+(c[k]||0)*weights[k],0);
+    $('costPerPixel').textContent=`${units.toLocaleString()} units`;
+    $('costForImage').textContent=(units*N).toLocaleString();
+    $('costStageCount').textContent=n.toLocaleString();
+    $('complexityImg').textContent=n?`O(N·n)`:'O(N)';
+    $('complexityGraph').textContent=n?`O(M·n)`:'O(M)';
+    const tbody=$('opTable');tbody.innerHTML='';
+    for(const k of Object.keys(labels)){
+      if(!c[k]) continue;
+      const contribution=c[k]*weights[k];
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${labels[k]}</td><td>${c[k]}</td><td>×${weights[k]}</td><td>${contribution}</td>`;
+      tbody.appendChild(tr);
+    }
+    if(!tbody.children.length){tbody.innerHTML='<tr><td colspan="4" class="small">恒等変換：追加の変換演算はありません。</td></tr>';}
+  }
+
+  function clearImagePreview(){
+    imageSource=null;
+    $('imageInput').value='';
+    $('imageName').textContent='画像はまだ選択されていません';
+    for(const id of ['imageOriginal','imageProcessed']){const c=$(id);c.hidden=true;const ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);}
+    $('originalWrap').querySelector('.image-placeholder').style.display='block';
+    $('processedWrap').querySelector('.image-placeholder').style.display='block';
+  }
+
+  function scheduleImageRender(){
+    if(!imageSource || imageRenderPending) return;
+    imageRenderPending=true;
+    requestAnimationFrame(()=>{imageRenderPending=false;renderImagePreview();});
+  }
+
+  function drawSourceToCanvas(canvas){
+    const iw=imageSource.naturalWidth||imageSource.width, ih=imageSource.naturalHeight||imageSource.height;
+    const scale=Math.min(1, IMAGE_MAX_DIM/Math.max(iw,ih));
+    const w=Math.max(1,Math.round(iw*scale)), h=Math.max(1,Math.round(ih*scale));
+    canvas.width=w;canvas.height=h;canvas.hidden=false;
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    ctx.clearRect(0,0,w,h);ctx.drawImage(imageSource,0,0,w,h);
+    return {ctx,w,h};
+  }
+
+  function makeRng(seed){
+    let a=(seed|0)>>>0;
+    return function(){
+      a=(a+0x6D2B79F5)>>>0;
+      let t=Math.imul(a^(a>>>15), 1|a);
+      t=(t + Math.imul(t^(t>>>7), 61|t)) ^ t;
+      return ((t^(t>>>14))>>>0)/4294967296;
+    };
+  }
+
+  function gaussianRandom(rng){
+    let u=0, v=0;
+    while(u<=1e-12) u=rng();
+    while(v<=1e-12) v=rng();
+    return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+  }
+
+  function imageDataToFloatBuffer(img){
+    const out=new Float32Array(img.data.length);
+    for(let i=0;i<img.data.length;i++) out[i]=img.data[i]/255;
+    return out;
+  }
+
+  function floatBufferToImageData(buf, img){
+    for(let i=0;i<img.data.length;i+=4){
+      img.data[i]=Math.round(255*clamp(buf[i],0,1));
+      img.data[i+1]=Math.round(255*clamp(buf[i+1],0,1));
+      img.data[i+2]=Math.round(255*clamp(buf[i+2],0,1));
+      img.data[i+3]=Math.round(255*clamp(buf[i+3],0,1));
+    }
+    return img;
+  }
+
+  function applyPointwiseOpToBuffer(buf, op){
+    for(let i=0;i<buf.length;i+=4){
+      for(let c=0;c<3;c++) buf[i+c]=evalStage(op, buf[i+c]).y;
+    }
+    return buf;
+  }
+
+  function applyGaussianNoiseToBuffer(buf, sigma, seed){
+    sigma=Math.max(0, Number(sigma)||0);
+    if(sigma<=0) return buf;
+    const rng=makeRng(Math.round(Number(seed)||0));
+    for(let i=0;i<buf.length;i+=4){
+      for(let c=0;c<3;c++) buf[i+c]=buf[i+c] + sigma*gaussianRandom(rng);
+    }
+    return buf;
+  }
+
+  function gaussianKernel1D(sigma){
+    sigma=Math.max(0, Number(sigma)||0);
+    if(sigma<=0) return {radius:0, kernel:[1]};
+    const radius=Math.max(1, Math.ceil(3*sigma));
+    const kernel=[];
+    let sum=0;
+    for(let i=-radius;i<=radius;i++){
+      const w=Math.exp(-(i*i)/(2*sigma*sigma));
+      kernel.push(w); sum+=w;
+    }
+    for(let i=0;i<kernel.length;i++) kernel[i]/=sum;
+    return {radius, kernel};
+  }
+
+  function applyGaussianBlurToBuffer(buf, w, h, sigma){
+    const g=gaussianKernel1D(sigma);
+    if(g.radius===0) return buf;
+    const tmp=new Float32Array(buf.length);
+    const out=new Float32Array(buf.length);
+    for(let y=0;y<h;y++){
+      for(let x=0;x<w;x++){
+        const idx=(y*w+x)*4;
+        for(let c=0;c<3;c++){
+          let acc=0;
+          for(let k=-g.radius;k<=g.radius;k++){
+            const xx=Math.min(w-1, Math.max(0, x+k));
+            acc += buf[(y*w+xx)*4+c] * g.kernel[k+g.radius];
+          }
+          tmp[idx+c]=acc;
+        }
+        tmp[idx+3]=buf[idx+3];
+      }
+    }
+    for(let y=0;y<h;y++){
+      for(let x=0;x<w;x++){
+        const idx=(y*w+x)*4;
+        for(let c=0;c<3;c++){
+          let acc=0;
+          for(let k=-g.radius;k<=g.radius;k++){
+            const yy=Math.min(h-1, Math.max(0, y+k));
+            acc += tmp[(yy*w+x)*4+c] * g.kernel[k+g.radius];
+          }
+          out[idx+c]=acc;
+        }
+        out[idx+3]=tmp[idx+3];
+      }
+    }
+    return out;
+  }
+
+  function applyOpsToImageBuffer(buf, w, h){
+    let out=buf;
+    for(const op of ops){
+      if(isSpatialOp(op)){
+        if(op.type==='gaussiannoise') out=applyGaussianNoiseToBuffer(out, op.p.sigma, op.p.seed);
+        else if(op.type==='gaussianblur') out=applyGaussianBlurToBuffer(out, w, h, op.p.sigma);
+      }else{
+        out=applyPointwiseOpToBuffer(out, op);
+      }
+    }
+    return out;
+  }
+
+  function renderImagePreview(){
+    if(!imageSource) return;
+    const orig=$('imageOriginal'), proc=$('imageProcessed');
+    const {ctx:origCtx,w,h}=drawSourceToCanvas(orig);
+    proc.width=w;proc.height=h;proc.hidden=false;
+    const pctx=proc.getContext('2d');
+    const img=origCtx.getImageData(0,0,w,h);
+    const buf=imageDataToFloatBuffer(img);
+    const out=applyOpsToImageBuffer(buf,w,h);
+    pctx.putImageData(floatBufferToImageData(out, img),0,0);
+    $('originalWrap').querySelector('.image-placeholder').style.display='none';
+    $('processedWrap').querySelector('.image-placeholder').style.display='none';
+    $('imageFlowLabel').textContent=hasSpatialOps() ? `${ops.length} 操作後の画像出力` : (ops.length?`${ops.length} 操作後の F(R), F(G), F(B)`:'F(x)=x');
+  }
+
+  function loadImageFile(file){
+    if(!file) return;
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{
+      if(imageSource && imageSource._objectURL) URL.revokeObjectURL(imageSource._objectURL);
+      img._objectURL=url;imageSource=img;
+      $('imageName').textContent=`${file.name} · ${img.naturalWidth}×${img.naturalHeight}px`;
+      renderImagePreview();
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);$('imageName').textContent='画像を読み込めませんでした';};
+    img.src=url;
+  }
+
+  function updateAll(redrawStackEq=true){
+    renderSignalFlow();renderFormula();renderSimplification();renderCosts();$('stageCount').textContent=ops.length;
+    const s=samples();
+    let ms=0,mc=0;for(const d of s){if(Number.isFinite(d.d1))ms=Math.max(ms,Math.abs(d.d1));if(Number.isFinite(d.d2))mc=Math.max(mc,Math.abs(d.d2));}
+    $('maxSlope').textContent=fmt(ms,3);$('maxCurv').textContent=fmt(mc,3);
+    drawCharts(s);
+    scheduleImageRender();
+  }
+
+  $('addOp').onclick=()=>{ops.push(makeOp($('newOp').value));renderStack();updateAll();};
+  $('clearAll').onclick=()=>{ops=[];renderStack();updateAll();};
+  $('presetBasic').onclick=()=>{ops=[makeOp('exposure',{ev:1}),makeOp('contrast',{k:1.15,p:.5}),makeOp('gammafx',{g:.85})];renderStack();updateAll();};
+  ['xmin','xmax','samples','pixelsN'].forEach(id=>$(id).addEventListener('input',()=>updateAll(false)));
+  $('showIntermediate').addEventListener('change',()=>updateAll(false));
+  $('imageInput').addEventListener('change',e=>loadImageFile(e.target.files?.[0]));
+  $('clearImage').addEventListener('click',clearImagePreview);
+  window.addEventListener('resize',()=>updateAll(false));
+
+  ops=[makeOp('exposure',{ev:1}),makeOp('contrast',{k:1.15,p:.5}),makeOp('power',{g:.85})];
+  renderStack();updateAll();
+})();
+</script>
+</body>
+</html>

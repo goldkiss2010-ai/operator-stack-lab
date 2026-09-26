@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Operator Stack Lab — 画像処理を「操作の列」として見る</title>
+<meta name="description" content="画像編集をパラメータの集まりではなく、順番を持つ操作の列として観察するブラウザ実験ツール Operator Stack Lab の解説ページです。">
+<style>
+:root{
+  --bg:#f5f7fa; --paper:#ffffff; --ink:#17212b; --muted:#667482;
+  --line:#dfe5ea; --accent:#176b87; --accent-soft:#e9f5f8;
+  --dark:#111820; --dark2:#18222c; --code:#eef2f5;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0f141a;--paper:#151c24;--ink:#edf2f6;--muted:#9eabb7;--line:#2b3642;--accent:#7cc8df;--accent-soft:#132c35;--dark:#0b1015;--dark2:#111922;--code:#1c2630}
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif;line-height:1.8}
+a{color:var(--accent)}
+.wrap{width:min(1040px,calc(100% - 36px));margin:auto}
+.hero{padding:76px 0 54px}
+.eyebrow{font-size:13px;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:12px}
+h1{font-size:clamp(34px,6vw,62px);line-height:1.08;letter-spacing:-.035em;margin:0 0 22px;max-width:900px}
+.lead{font-size:clamp(17px,2.3vw,22px);line-height:1.75;color:var(--muted);max-width:800px;margin:0 0 30px}
+.cta{display:flex;gap:12px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;border-radius:10px;text-decoration:none;font-weight:700;border:1px solid var(--line);background:var(--paper);color:var(--ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+@media (prefers-color-scheme:dark){.btn.primary{color:#081016}}
+.section{padding:56px 0;border-top:1px solid var(--line)}
+h2{font-size:clamp(25px,4vw,36px);line-height:1.25;letter-spacing:-.02em;margin:0 0 22px}
+h3{font-size:20px;margin:0 0 10px}
+p{margin:0 0 18px}
+.note{padding:18px 20px;background:var(--accent-soft);border-left:4px solid var(--accent);border-radius:8px;margin:24px 0}
+.flow{display:flex;align-items:stretch;gap:10px;overflow-x:auto;padding:12px 2px 18px;margin:24px 0}
+.node{min-width:150px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.node strong{display:block;margin-bottom:5px}.node small{color:var(--muted)}
+.arrow{display:flex;align-items:center;color:var(--muted);font-size:22px;flex:0 0 auto}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:22px}
+.card{padding:22px;border:1px solid var(--line);border-radius:14px;background:var(--paper)}
+.card p:last-child{margin-bottom:0}
+@media(max-width:720px){.grid{grid-template-columns:1fr}.hero{padding-top:54px}.flow{margin-left:-4px;margin-right:-4px}}
+.eq{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--code);padding:16px 18px;border-radius:10px;overflow:auto;margin:18px 0;color:var(--ink)}
+.kicker{font-weight:700;color:var(--accent)}
+.tablewrap{overflow-x:auto;margin-top:22px}
+table{border-collapse:collapse;width:100%;min-width:620px;background:var(--paper)}
+th,td{padding:13px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:13px;color:var(--muted);font-weight:700}
+.tag{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);margin-right:4px}
+.footer{padding:42px 0 70px;color:var(--muted);font-size:13px;border-top:1px solid var(--line)}
+.mini{font-size:14px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Operator Stack Lab</div>
+    <h1>画像処理を「パラメータ」ではなく<br>「操作の列」として見る</h1>
+    <p class="lead">露出、コントラスト、ガンマ、ブラー。画像編集では同じ操作を使っていても、並べる順番によって結果が変わります。Operator Stack Lab は、その処理の流れをカーブと実画像の両方から観察するためのブラウザ実験ツールです。</p>
+    <div class="cta">
+      <a class="btn primary" href="./lab.html">ツールを開く →</a>
+      <a class="btn" href="#how">使い方を見る</a>
+    </div>
+  </div>
+</header>
+
+<main>
+<section class="section">
+  <div class="wrap">
+    <h2>編集操作を、上から順に読む</h2>
+    <p>一般的な編集ソフトでは、露出やガンマは個別のスライダーとして並んでいます。しかし実際には、それぞれの操作が信号へ順番に作用しています。このツールでは、その順序自体を主役にします。</p>
+    <div class="flow" aria-label="処理の流れの例">
+      <div class="node"><strong>入力</strong><small>元の信号・画像</small></div><div class="arrow">→</div>
+      <div class="node"><strong>露出</strong><small>最初に作用</small></div><div class="arrow">→</div>
+      <div class="node"><strong>Gaussian Blur</strong><small>近傍画素を参照</small></div><div class="arrow">→</div>
+      <div class="node"><strong>ガンマ</strong><small>その結果へ作用</small></div><div class="arrow">→</div>
+      <div class="node"><strong>出力</strong><small>最終結果</small></div>
+    </div>
+    <p>カードはドラッグして並べ替えられます。順番を変えたとき、カーブと画像がどう変化するかをその場で確認できます。</p>
+  </div>
+</section>
+
+<section class="section" id="how">
+  <div class="wrap">
+    <h2>使い方</h2>
+    <div class="grid">
+      <div class="card"><h3>1. 操作を追加する</h3><p>露出、明るさ、コントラスト、ガンマ、Sカーブ、Gaussian Noise、Gaussian Blur などから操作を選びます。新しい操作は列の一番下に追加されます。</p></div>
+      <div class="card"><h3>2. 強度を変える</h3><p>各カードのスライダーでパラメータを変更します。数値入力も併用できます。変化はカーブと画像プレビューへ即座に反映されます。</p></div>
+      <div class="card"><h3>3. 順番を入れ替える</h3><p>カード右上のドラッグハンドルをつかみ、挿入したい位置へ移動します。挿入位置がハイライトされるので、処理順を視覚的に編集できます。</p></div>
+      <div class="card"><h3>4. 画像で確認する</h3><p>好きな画像を読み込むと、現在の操作列をそのまま適用できます。入力画像と最終出力を並べて比較できます。</p></div>
+    </div>
+    <div class="note"><strong>画像はブラウザ内で処理されます。</strong> この版は画像を外部サーバーへ送信する処理を持っていません。</div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2>一本のカーブで表せる操作</h2>
+    <p>露出やガンマのように、ある画素の出力がその画素の入力値だけで決まる操作は、1変数関数として考えられます。</p>
+    <div class="eq">x → f₁(x) → f₂(f₁(x)) → … → F(x)</div>
+    <p>複数の pointwise 操作を積むと、最終的には一つの合成関数 <strong>F(x)</strong> として見ることができます。ツール上では、灰色の破線が入力 <span class="kicker">y=x</span>、太い線が最終的な <span class="kicker">F(x)</span> です。</p>
+    <p>解析欄では、局所的な増幅・圧縮を表す <strong>F′(x)</strong> と、曲率を表す <strong>F″(x)</strong> も確認できます。</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2>Blurを入れると、一本のカーブでは足りなくなる</h2>
+    <p>Gaussian Blur は、現在の画素だけではなく周囲の画素も参照します。そのため、単純な <strong>y=F(x)</strong> だけでは処理全体を記述できません。</p>
+    <div class="eq">I′(p) = Σ w(q) I(p+q)</div>
+    <p>ここで入力は一つの値ではなく画像 <strong>I</strong> になり、操作は関数というより「画像へ作用する作用素」になります。ツールに Blur や Noise が含まれている場合、カーブと微分は pointwise な部分だけを表示し、画像プレビューにはすべての操作を順番どおり適用します。</p>
+    <div class="note">この違いが、Operator Stack Lab の中心的な見どころの一つです。<strong>Function Stack</strong> として始まった列が、空間処理を含むと <strong>Operator Stack</strong> へ拡張されます。</div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2>いま入っている操作</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>操作</th><th>性質</th><th>主なパラメータ</th></tr></thead>
+        <tbody>
+          <tr><td>露出 / ゲイン / 明るさ</td><td><span class="tag">pointwise</span><span class="tag">affine</span></td><td>EV、gain、offset</td></tr>
+          <tr><td>コントラスト</td><td><span class="tag">pointwise</span><span class="tag">affine</span></td><td>強さ、中心</td></tr>
+          <tr><td>ガンマ / Power</td><td><span class="tag">pointwise</span><span class="tag">nonlinear</span></td><td>γ</td></tr>
+          <tr><td>Log / Exp / Sカーブ</td><td><span class="tag">pointwise</span><span class="tag">nonlinear</span></td><td>強さ、中心</td></tr>
+          <tr><td>Gaussian Noise</td><td><span class="tag">stochastic</span><span class="tag">per-pixel</span></td><td>σ、seed</td></tr>
+          <tr><td>Gaussian Blur</td><td><span class="tag">spatial</span><span class="tag">linear</span></td><td>σ</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2>計算量も「1画素あたり」で見る</h2>
+    <p>Big-O 記法だけでは、加算と log の違いは見えません。そこで解析欄では、理論計算量を併記しながら、1画素あたりの演算構成を相対的な <strong>cost units</strong> として表示します。</p>
+    <div class="eq">例：add / mul = 1, div = 3, pow / log / exp = 10</div>
+    <p>この値はCPUやGPUの実測時間を予測するものではありません。あくまで、同じツールの中で操作列どうしの重さを比較するための簡易指標です。Gaussian Blur では近傍参照数もコストへ含めています。</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2>現在の制限</h2>
+    <p>このツールは、画像処理の順序と構造を観察するための実験版です。現時点では、画像のRGB各チャンネルを基本単位として処理し、厳密なカラーマネジメントやscene-referred / display-referred の管理は行っていません。また、出力表示時には0–1範囲へクリップします。</p>
+    <p>そのため、色管理された現像・グレーディング環境の代替ではなく、<strong>「どの操作を、どの順序で作用させると、信号や画像がどう変わるか」</strong>を観察するための教育・実験ツールとして使うことを想定しています。</p>
+    <div class="cta" style="margin-top:28px"><a class="btn primary" href="./lab.html">Operator Stack Lab を開く →</a></div>
+  </div>
+</section>
+</main>
+
+<footer class="footer"><div class="wrap">Operator Stack Lab — experimental browser tool for visualizing image and signal operation stacks.</div></footer>
+</body>
+</html>
